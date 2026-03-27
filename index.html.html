@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 자율운영 데이터센터</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+  html, body { margin:0; padding:0; overflow:hidden; height:100%; font-family:'Noto Sans KR',sans-serif; }
+  .gradient-text { background:linear-gradient(135deg,#0f4c81 0%,#3b82f6 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+
+  /* === Slide Engine === */
+  #slide-container { display:flex; height:calc(100vh - 64px); margin-top:64px; transition:transform 0.7s cubic-bezier(0.65,0,0.35,1); will-change:transform; }
+  .slide { min-width:100vw; width:100vw; height:100%; overflow-y:auto; overflow-x:hidden; position:relative; }
+  .slide::-webkit-scrollbar { width:6px; }
+  .slide::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+  .slide:nth-child(odd) { background:#ffffff; }
+  .slide:nth-child(even) { background:#f8fafc; }
+
+  /* Slide inner content wrapper */
+  .slide-inner { max-width:72rem; margin:0 auto; padding:3rem 2rem 4rem; }
+
+  /* === Nav === */
+  nav a.nav-link { position:relative; }
+  nav a.nav-link.active { color:#2563eb !important; font-weight:700; }
+  nav a.nav-link.active::after { content:''; position:absolute; bottom:-4px; left:0; right:0; height:2px; background:#2563eb; border-radius:1px; }
+  nav a.nav-pill.active { background:#1d4ed8 !important; }
+
+  /* === Page Indicator Dots === */
+  #page-dots { position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%); z-index:60; display:flex; gap:8px; background:white; padding:8px 16px; border-radius:50px; box-shadow:0 4px 20px rgba(0,0,0,0.1); border:1px solid #e2e8f0; }
+  .page-dot { width:10px; height:10px; border-radius:50%; background:#cbd5e1; cursor:pointer; transition:all 0.3s; }
+  .page-dot:hover { background:#93c5fd; transform:scale(1.2); }
+  .page-dot.active { background:#2563eb; transform:scale(1.3); box-shadow:0 0 0 3px rgba(37,99,235,0.2); }
+
+  /* === Slide transition animations for content === */
+  .slide .anim { opacity:0; transform:translateY(30px); transition:all 0.6s ease 0.15s; }
+  .slide.active .anim { opacity:1; transform:translateY(0); }
+  .slide .anim-d1 { transition-delay:0.25s; }
+  .slide .anim-d2 { transition-delay:0.35s; }
+  .slide .anim-d3 { transition-delay:0.45s; }
+
+  /* === Prev/Next Arrows === */
+  .slide-arrow { position:fixed; top:50%; transform:translateY(-50%); z-index:60; width:44px; height:44px; border-radius:50%; background:white; border:1px solid #e2e8f0; box-shadow:0 4px 12px rgba(0,0,0,0.08); cursor:pointer; display:flex; align-items:center; justify-content:center; color:#64748b; transition:all 0.2s; font-size:1rem; }
+  .slide-arrow:hover { background:#f1f5f9; color:#2563eb; box-shadow:0 6px 20px rgba(0,0,0,0.12); }
+  .slide-arrow.disabled { opacity:0.3; pointer-events:none; }
+  #arrow-prev { left:1.2rem; }
+  #arrow-next { right:1.2rem; }
+
+  /* === KPI === */
+  .kpi-card { transition:all 0.3s; cursor:pointer; }
+  .kpi-card:hover { transform:translateY(-3px); box-shadow:0 8px 30px rgba(59,130,246,0.15); border-color:#3b82f6; }
+
+  /* === Level Cards === */
+  .levels-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; }
+  .lv-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; transition:transform 0.3s,box-shadow 0.3s; }
+  .lv-card:hover { transform:translateY(-4px); box-shadow:0 20px 60px rgba(0,0,0,0.1); }
+  .lv-top { padding:1rem 1.2rem; color:white; position:relative; }
+  .lv-top h3 { font-size:0.95rem; font-weight:700; }
+  .lv-top .sub { font-size:0.72rem; opacity:0.8; }
+  .lv-badge { position:absolute; top:0.6rem; right:0.6rem; background:rgba(255,255,255,0.25); font-size:0.62rem; font-weight:600; padding:0.12rem 0.45rem; border-radius:50px; }
+  .lv-body { padding:1rem 1.2rem; }
+  .lv-section-label { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:0.3rem; }
+  .lv-body ul { list-style:none; margin-bottom:0.8rem; padding:0; }
+  .lv-body li { font-size:0.78rem; padding:0.2rem 0 0.2rem 0.8rem; position:relative; color:#475569; }
+  .lv-body li::before { content:''; position:absolute; left:0; top:0.5rem; width:5px; height:5px; border-radius:50%; }
+  .lv-body .asis li::before { background:#f59e0b; }
+  .lv-body .tobe li::before { background:#06b6d4; }
+  .lv-pct { display:flex; align-items:center; gap:6px; margin-top:0.4rem; font-size:0.72rem; }
+  .pct-bar { flex:1; height:7px; border-radius:4px; background:#f1f5f9; overflow:hidden; display:flex; }
+  .pct-human { background:#f59e0b; }
+  .pct-ai { background:#06b6d4; }
+  .l0-bg { background:linear-gradient(135deg,#475569,#64748b); }
+  .l1-bg { background:linear-gradient(135deg,#0e4f8b,#2563eb); }
+  .l2-bg { background:linear-gradient(135deg,#0d6e6e,#14b8a6); }
+  .l3-bg { background:linear-gradient(135deg,#7c3aed,#a855f7); }
+  .l4-bg { background:linear-gradient(135deg,#1d4ed8,#3b82f6); }
+  .l5-bg { background:linear-gradient(135deg,#047857,#22c55e); }
+
+  /* === Hyperscaler === */
+  .hs-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; }
+  .hs-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1.5rem; transition:all 0.3s; display:flex; flex-direction:column; }
+  .hs-card:hover { border-color:#93c5fd; transform:translateY(-2px); box-shadow:0 12px 40px rgba(0,0,0,0.08); }
+
+  /* === Impact === */
+  .impact-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+  .impact-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:2rem; position:relative; overflow:hidden; }
+  .impact-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+  .impact-card.pos::before { background:linear-gradient(90deg,#22c55e,#06b6d4); }
+  .impact-card.neg::before { background:linear-gradient(90deg,#ef4444,#f59e0b); }
+
+  /* === Risk Matrix === */
+  .risk-matrix { display:grid; grid-template-columns:120px repeat(3,1fr); gap:2px; border-radius:12px; overflow:hidden; font-size:0.78rem; text-align:center; }
+  .rm-h { background:#f1f5f9; padding:0.7rem; font-weight:700; color:#334155; }
+  .rm-c { padding:0.7rem; font-size:0.75rem; line-height:1.4; }
+  .rm-low { background:#f0fdf4; color:#166534; }
+  .rm-med { background:#fffbeb; color:#92400e; }
+  .rm-high { background:#fef2f2; color:#991b1b; }
+
+  /* === Roadmap === */
+  .road-timeline { display:flex; gap:0; padding:1rem 0; }
+  .road-phase { flex:1; min-width:160px; text-align:center; padding:1.5rem 1rem; position:relative; }
+  .road-phase::after { content:''; position:absolute; top:calc(1.5rem + 8px); right:0; width:50%; height:3px; background:#93c5fd; }
+  .road-phase:last-child::after { display:none; }
+  .road-phase::before { content:''; position:absolute; top:calc(1.5rem + 8px); left:0; width:50%; height:3px; background:#93c5fd; }
+  .road-phase:first-child::before { display:none; }
+  .road-dot { width:18px; height:18px; border-radius:50%; background:#3b82f6; margin:0 auto 0.8rem; position:relative; z-index:2; border:3px solid #fff; box-shadow:0 0 0 2px #93c5fd,0 2px 8px rgba(59,130,246,0.2); }
+  .road-dot.current { background:#22c55e; box-shadow:0 0 0 2px #86efac,0 2px 8px rgba(34,197,94,0.25); }
+
+  /* === Reference Modal === */
+  .ref-modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+  .ref-modal.show { display:flex; }
+  .ref-content { background:#fff; border:1px solid #e2e8f0; border-radius:20px; padding:2rem; max-width:600px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 30px 80px rgba(0,0,0,0.2); }
+  .ref-content h3 { font-size:1.1rem; margin-bottom:1rem; color:#0f172a; }
+  .ref-content .ref-item { padding:0.8rem; border-radius:10px; background:#f8fafc; border:1px solid #e2e8f0; margin-bottom:0.6rem; }
+  .ref-content .ref-item a { color:#2563eb; font-size:0.85rem; font-weight:600; }
+  .ref-content .ref-item p { font-size:0.78rem; color:#64748b; margin-top:0.3rem; }
+
+  /* === Keyboard hint === */
+  #key-hint { position:fixed; bottom:1.5rem; right:1.5rem; z-index:60; background:white; padding:6px 14px; border-radius:10px; box-shadow:0 2px 12px rgba(0,0,0,0.08); border:1px solid #e2e8f0; font-size:0.7rem; color:#94a3b8; }
+  #key-hint kbd { background:#f1f5f9; border:1px solid #e2e8f0; border-radius:4px; padding:1px 6px; font-family:inherit; font-size:0.65rem; }
+
+  @media (max-width:768px) {
+    .impact-grid { grid-template-columns:1fr; }
+    .levels-grid { grid-template-columns:1fr; }
+    .hs-grid { grid-template-columns:1fr; }
+    .risk-matrix { grid-template-columns:100px repeat(3,1fr); font-size:0.7rem; }
+    .slide-arrow { display:none; }
+    #key-hint { display:none; }
+  }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900">
+
+<!-- Navigation -->
+<nav class="fixed top-0 w-full z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between h-16 items-center">
+      <a href="https://cloud.samsungsds.com/serviceportal/index.html" target="_blank" rel="noopener" class="flex items-center gap-3 group">
+        <span class="w-11 h-11 flex items-center justify-center">
+          <svg class="w-11 h-11" viewBox="0 0 44 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="12" y="2" width="20" height="8" rx="4" fill="#0A6CFF"/>
+            <rect x="2" y="13" width="12" height="8" rx="4" fill="#0A6CFF"/>
+            <rect x="16" y="13" width="26" height="8" rx="4" fill="#0A6CFF"/>
+            <rect x="6" y="24" width="24" height="8" rx="4" fill="#0A6CFF"/>
+            <circle cx="36" cy="28" r="4" fill="#0A6CFF"/>
+          </svg>
+        </span>
+        <span class="font-black text-lg text-slate-900 tracking-tight group-hover:text-blue-700 transition">Samsung Cloud Platform</span>
+      </a>
+      <div class="hidden md:flex items-center space-x-1 text-sm font-medium">
+        <a href="#" data-slide="0" class="nav-link px-3 py-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition">개요</a>
+        <a href="#" data-slide="1" class="nav-link px-3 py-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition">글로벌 사례</a>
+        <a href="#" data-slide="2" class="nav-link px-3 py-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition">6단계 상세</a>
+        <a href="#" data-slide="3" class="nav-pill px-5 py-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm font-bold">기회 vs 위험</a>
+        <a href="#" data-slide="4" class="nav-link px-3 py-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition">로드맵</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- Reference Modal -->
+<div class="ref-modal" id="refModal">
+  <div class="ref-content" id="refContent"></div>
+</div>
+
+<!-- ===== SLIDE CONTAINER ===== -->
+<div id="slide-container">
+
+<!-- SLIDE 0: 개요 (비교 다이어그램) -->
+<div class="slide" data-id="diagram">
+  <div class="slide-inner" style="display:flex;flex-direction:column;justify-content:center;min-height:100%;">
+    <div class="text-center mb-8 anim">
+      <h1 class="text-4xl md:text-5xl font-black mb-4 leading-tight text-slate-900">
+        <span class="gradient-text">AI 자율운영 데이터센터</span>
+      </h1>
+      <p class="text-slate-500">자율주행 vs 데이터센터 — 책임 주체가 인간에서 AI 시스템으로 이동하는 구조</p>
+    </div>
+    <div class="anim anim-d1 rounded-3xl overflow-hidden shadow-2xl border border-slate-200">
+      <img src="comparison_diagram.jpg" alt="자율 운영 단계 대응 모델: 자율주행 vs 데이터센터" class="w-full" style="display:block;">
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 1: HYPERSCALERS (KPI 포함) -->
+<div class="slide" data-id="hyperscalers">
+  <div class="slide-inner">
+    <!-- KPI Strip -->
+    <div class="anim grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+      <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-4 text-center shadow-sm" onclick="openRef('cooling')">
+        <div class="text-2xl font-black text-blue-600">40%</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">냉각 에너지 절감</div>
+        <div class="text-[10px] text-blue-500 mt-1 font-bold">출처 보기 →</div>
+      </div>
+      <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-4 text-center shadow-sm" onclick="openRef('mttr')">
+        <div class="text-2xl font-black text-blue-600">50%</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">MTTR 단축</div>
+        <div class="text-[10px] text-blue-500 mt-1 font-bold">출처 보기 →</div>
+      </div>
+      <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-4 text-center shadow-sm" onclick="openRef('humanerror')">
+        <div class="text-2xl font-black text-emerald-600">70%</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">장애 = 휴먼에러</div>
+        <div class="text-[10px] text-blue-500 mt-1 font-bold">출처 보기 →</div>
+      </div>
+      <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-4 text-center shadow-sm" onclick="openRef('automation')">
+        <div class="text-2xl font-black text-emerald-600">60%</div>
+        <div class="text-xs text-slate-500 mt-1 font-medium">반복업무 자동화</div>
+        <div class="text-[10px] text-blue-500 mt-1 font-bold">출처 보기 →</div>
+      </div>
+    </div>
+    <div class="text-center mb-8 anim anim-d1">
+      <h2 class="text-3xl font-bold text-slate-900 mb-3">글로벌 하이퍼스케일러 현황</h2>
+      <p class="text-slate-500">각 기업의 현재 자율운영 수준과 AI 도입 전략</p>
+    </div>
+    <div class="hs-grid anim anim-d2">
+      <div class="hs-card">
+        <div class="flex items-center gap-3 mb-3"><i class="fa-brands fa-google text-2xl text-blue-500"></i><h4 class="font-bold text-lg text-slate-900">Google Cloud</h4></div>
+        <p class="text-sm text-slate-600 leading-relaxed mb-3">DeepMind AI로 냉각 에너지 40% 절감 달성 (L2). SRE 문화 기반 Incident Command System으로 장애 대응 체계화.</p>
+        <span class="inline-block text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 mb-3">종합 L1~L2 / 냉각 L3</span>
+        <div class="flex flex-wrap gap-2 mt-auto">
+          <a href="https://deepmind.google/discover/blog/safety-first-ai-for-autonomous-data-centre-cooling-and-industrial-control/" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>DeepMind AI Cooling</a>
+          <a href="https://sre.google/sre-book/managing-incidents/" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Google SRE Book</a>
+        </div>
+      </div>
+      <div class="hs-card">
+        <div class="flex items-center gap-3 mb-3"><i class="fa-brands fa-aws text-2xl text-orange-500"></i><h4 class="font-bold text-lg text-slate-900">AWS (Amazon)</h4></div>
+        <p class="text-sm text-slate-600 leading-relaxed mb-3">Builders' Library 기반 hands-off 배포 자동화 (one-box → rolling → auto-rollback). 물리 보안은 24x7 SOC 운영.</p>
+        <span class="inline-block text-xs font-bold px-3 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 mb-3">종합 L1~L2 / 배포 L3~L4</span>
+        <div class="flex flex-wrap gap-2 mt-auto">
+          <a href="https://aws.amazon.com/builders-library/" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Builders' Library</a>
+          <a href="https://aws.amazon.com/builders-library/automating-safe-hands-off-deployments/" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Hands-off Deploy</a>
+        </div>
+      </div>
+      <div class="hs-card">
+        <div class="flex items-center gap-3 mb-3"><i class="fa-brands fa-microsoft text-2xl text-blue-600"></i><h4 class="font-bold text-lg text-slate-900">Microsoft Azure</h4></div>
+        <p class="text-sm text-slate-600 leading-relaxed mb-3">2026.03 Azure SRE Agent GA — AI가 장애 조사·요약·runbook 추천 수행. blast radius 축소와 tenant isolation 강화 중.</p>
+        <span class="inline-block text-xs font-bold px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 mb-3">종합 L1~L2 / SRE Agent L2</span>
+        <div class="flex flex-wrap gap-2 mt-auto">
+          <a href="https://techcommunity.microsoft.com/blog/appsonazureblog/announcing-general-availability-for-the-azure-sre-agent/4500682" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Azure SRE Agent</a>
+          <a href="https://techcommunity.microsoft.com/blog/azurenetworkingblog/azure-front-door-implementing-lessons-learned-following-october-outages/4479416" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Incident Lessons</a>
+        </div>
+      </div>
+      <div class="hs-card">
+        <div class="flex items-center gap-3 mb-3"><i class="fa-solid fa-microchip text-2xl text-purple-500"></i><h4 class="font-bold text-lg text-slate-900">NVIDIA (NemoCLAW)</h4></div>
+        <p class="text-sm text-slate-600 leading-relaxed mb-3">NemoCLAW로 데이터센터 자율운영 에이전트 프레임워크 제공. GPU 인프라에 특화된 모니터링→진단→복구 폐쇄루프 목표.</p>
+        <span class="inline-block text-xs font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 mb-3">에이전트 프레임워크 L3 목표</span>
+        <div class="flex flex-wrap gap-2 mt-auto">
+          <a href="https://blogs.nvidia.com/blog/rtx-ai-garage-gtc-2026-nemoclaw/" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>NemoCLAW Blog</a>
+          <a href="https://www.nvidia.com/en-us/data-center/" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>NVIDIA Data Center</a>
+        </div>
+      </div>
+      <div class="hs-card">
+        <div class="flex items-center gap-3 mb-3"><i class="fa-brands fa-meta text-2xl text-blue-500"></i><h4 class="font-bold text-lg text-slate-900">Meta</h4></div>
+        <p class="text-sm text-slate-600 leading-relaxed mb-3">자체 설계 데이터센터와 Open Compute Project(OCP) 하드웨어. AI 워크로드에 최적화된 인프라 자동 프로비저닝.</p>
+        <span class="inline-block text-xs font-bold px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 mb-3">종합 L1~L2 / GPU 클러스터 L2</span>
+        <div class="flex flex-wrap gap-2 mt-auto">
+          <a href="https://engineering.fb.com/category/data-center-engineering/" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Meta Engineering</a>
+          <a href="https://www.opencompute.org/" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>OCP Project</a>
+        </div>
+      </div>
+      <div class="hs-card">
+        <div class="flex items-center gap-3 mb-3"><i class="fa-solid fa-chart-line text-2xl text-slate-400"></i><h4 class="font-bold text-lg text-slate-900">업계 평균 (종합)</h4></div>
+        <p class="text-sm text-slate-600 leading-relaxed mb-3">현재 업계 전체 운영은 <strong>L1~L2</strong> 수준. 좁은 영역에서만 L3~L4. <strong>완전 자율 L5는 아직 미실현</strong>.</p>
+        <span class="inline-block text-xs font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 mb-3">종합 L1.5 수준</span>
+        <div class="flex flex-wrap gap-2 mt-auto">
+          <a href="https://uptimeinstitute.com/resources/research-and-reports/annual-outage-analysis" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Uptime Institute</a>
+          <a href="https://www.gartner.com/en/information-technology" target="_blank" rel="noopener" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Gartner IT</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 3: LEVELS -->
+<div class="slide" data-id="levels">
+  <div class="slide-inner">
+    <div class="text-center mb-10 anim">
+      <h2 class="text-3xl font-bold text-slate-900 mb-3">AS-IS → TO-BE 단계별 상세</h2>
+      <p class="text-slate-500">L0~L2 기반 구축 → L3~L5 자율운영 전환</p>
+    </div>
+    <!-- Row 1: L0 ~ L2 -->
+    <div class="levels-grid anim anim-d1 mb-4">
+      <div class="lv-card"><div class="lv-top l0-bg"><div class="lv-badge">다수 기업 현재</div><h3>L0 — 완전 수동</h3><div class="sub">No Automation</div></div><div class="lv-body"><div class="lv-section-label" style="color:#f59e0b;">AS-IS</div><ul class="asis"><li>모든 모니터링/대응을 사람이 직접 수행</li><li>NOC 24/7 교대 근무, 수동 티켓</li><li>엔지니어 경험과 직감 기반 의사결정</li></ul><div class="lv-section-label" style="color:#06b6d4;">TO-BE</div><ul class="tobe"><li>통합 모니터링 대시보드 구축</li><li>SOP 문서화, 체크리스트 기반 대응</li></ul><div class="lv-pct"><span class="text-orange-500 font-bold"><i class="fa-solid fa-user" style="font-size:0.65rem;"></i> 100%</span><div class="pct-bar"><div class="pct-human" style="width:100%;"></div></div><span class="text-cyan-500 font-bold"><i class="fa-solid fa-robot" style="font-size:0.65rem;"></i> 0%</span></div></div></div>
+      <div class="lv-card"><div class="lv-top l1-bg"><div class="lv-badge">선도기업 일부</div><h3>L1 — AI 보조 모니터링</h3><div class="sub">Driver Assistance</div></div><div class="lv-body"><div class="lv-section-label" style="color:#f59e0b;">AS-IS</div><ul class="asis"><li>정적 임계값 알림, 알림 폭주</li><li>SMART 데이터 수집만, 분석 미활용</li></ul><div class="lv-section-label" style="color:#06b6d4;">TO-BE</div><ul class="tobe"><li>AI 이상 탐지 + SINDy HDD 장애 예측</li><li>알림 상관분석 노이즈 85% 감소</li></ul><div class="lv-pct"><span class="text-orange-500 font-bold"><i class="fa-solid fa-user" style="font-size:0.65rem;"></i> 80%</span><div class="pct-bar"><div class="pct-human" style="width:80%;"></div><div class="pct-ai" style="width:20%;"></div></div><span class="text-cyan-500 font-bold"><i class="fa-solid fa-robot" style="font-size:0.65rem;"></i> 20%</span></div></div></div>
+      <div class="lv-card"><div class="lv-top l2-bg"><div class="lv-badge">Google/AWS 부분</div><h3>L2 — 부분 자동화</h3><div class="sub">Partial Automation</div></div><div class="lv-body"><div class="lv-section-label" style="color:#f59e0b;">AS-IS</div><ul class="asis"><li>Auto-scaling, PID 냉각 제어</li><li>사람 판단 후 스크립트 실행</li></ul><div class="lv-section-label" style="color:#06b6d4;">TO-BE</div><ul class="tobe"><li>DeepMind AI 냉각 (에너지 40%↓)</li><li>Known 장애 자동복구, AI 용량 계획</li></ul><div class="lv-pct"><span class="text-orange-500 font-bold"><i class="fa-solid fa-user" style="font-size:0.65rem;"></i> 60%</span><div class="pct-bar"><div class="pct-human" style="width:60%;"></div><div class="pct-ai" style="width:40%;"></div></div><span class="text-cyan-500 font-bold"><i class="fa-solid fa-robot" style="font-size:0.65rem;"></i> 40%</span></div></div></div>
+    </div>
+    <!-- Row 2: L3 ~ L5 -->
+    <div class="levels-grid anim anim-d2">
+      <div class="lv-card"><div class="lv-top l3-bg"><div class="lv-badge">2026~2028</div><h3>L3 — 조건부 자율운영</h3><div class="sub">Conditional Automation</div></div><div class="lv-body"><div class="lv-section-label" style="color:#f59e0b;">AS-IS</div><ul class="asis"><li>정상 시 AI 가능, 비정상 시 인간 필수</li><li>변경관리/보안은 수동 승인</li></ul><div class="lv-section-label" style="color:#06b6d4;">TO-BE</div><ul class="tobe"><li>OpenCLAW/NemoCLAW 에이전트 자율운영</li><li>AI 자동 RCA + 예측적 유지보수</li><li>ODD 밖 상황 즉시 human takeover</li></ul><div class="lv-pct"><span class="text-orange-500 font-bold"><i class="fa-solid fa-user" style="font-size:0.65rem;"></i> 30%</span><div class="pct-bar"><div class="pct-human" style="width:30%;"></div><div class="pct-ai" style="width:70%;"></div></div><span class="text-cyan-500 font-bold"><i class="fa-solid fa-robot" style="font-size:0.65rem;"></i> 70%</span></div></div></div>
+      <div class="lv-card"><div class="lv-top l4-bg"><div class="lv-badge">2028~2030</div><h3>L4 — 고도 자율운영</h3><div class="sub">High Automation</div></div><div class="lv-body"><div class="lv-section-label" style="color:#f59e0b;">AS-IS</div><ul class="asis"><li>도달 기업 없음</li><li>복합 장애는 인간 영역</li></ul><div class="lv-section-label" style="color:#06b6d4;">TO-BE</div><ul class="tobe"><li>멀티에이전트 협업 복합장애 대응</li><li>보안 위협 자동 탐지+격리+복구</li><li>Human-on-the-Loop 전환</li></ul><div class="lv-pct"><span class="text-orange-500 font-bold"><i class="fa-solid fa-user" style="font-size:0.65rem;"></i> 10%</span><div class="pct-bar"><div class="pct-human" style="width:10%;"></div><div class="pct-ai" style="width:90%;"></div></div><span class="text-cyan-500 font-bold"><i class="fa-solid fa-robot" style="font-size:0.65rem;"></i> 90%</span></div></div></div>
+      <div class="lv-card"><div class="lv-top l5-bg"><div class="lv-badge">2030+ Vision</div><h3>L5 — 완전 자율운영</h3><div class="sub">Full Automation</div></div><div class="lv-body"><div class="lv-section-label" style="color:#f59e0b;">AS-IS</div><ul class="asis"><li>이론적 단계, 달성 기업 없음</li><li>물리 작업/규제 인간 필수</li></ul><div class="lv-section-label" style="color:#06b6d4;">TO-BE</div><ul class="tobe"><li>Self-Healing 인프라 완성</li><li>로봇 물리 유지보수</li><li>NemoCLAW 오케스트레이션</li></ul><div class="lv-pct"><span class="text-orange-500 font-bold"><i class="fa-solid fa-user" style="font-size:0.65rem;"></i> ~0%</span><div class="pct-bar"><div class="pct-ai" style="width:100%;"></div></div><span class="text-cyan-500 font-bold"><i class="fa-solid fa-robot" style="font-size:0.65rem;"></i> ~100%</span></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 4: IMPACT -->
+<div class="slide" data-id="impact">
+  <div class="slide-inner">
+    <div class="text-center mb-10 anim">
+      <h2 class="text-3xl font-bold text-slate-900 mb-3">기회 vs 위험 분석</h2>
+      <p class="text-slate-500">AI 자율운영의 긍정적 효과와 반드시 대비해야 할 위험</p>
+    </div>
+    <div class="impact-grid anim anim-d1">
+      <div class="impact-card pos">
+        <h3 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><i class="fa-solid fa-circle-check text-emerald-500"></i> 기회 요인</h3>
+        <div class="space-y-4">
+          <div class="flex gap-3 items-start pb-4 border-b border-slate-100"><div class="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0"><i class="fa-solid fa-user-shield"></i></div><div><div class="font-bold text-sm text-slate-800">휴먼에러 배제</div><div class="text-xs text-slate-500 mt-0.5">DC 장애의 70%가 사람 실수 — AI 검증으로 설정 오류 원천 차단</div><span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 mt-1">장애 70% 감소</span></div></div>
+          <div class="flex gap-3 items-start pb-4 border-b border-slate-100"><div class="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0"><i class="fa-solid fa-gauge-high"></i></div><div><div class="font-bold text-sm text-slate-800">MTTR 50% 단축</div><div class="text-xs text-slate-500 mt-0.5">AIOps 자동 RCA — 수시간→수분. Azure SRE Agent GA로 현실화</div><span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-cyan-50 text-cyan-700 mt-1">대응속도 10x↑</span></div></div>
+          <div class="flex gap-3 items-start pb-4 border-b border-slate-100"><div class="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0"><i class="fa-solid fa-bolt"></i></div><div><div class="font-bold text-sm text-slate-800">에너지 비용 40% 절감</div><div class="text-xs text-slate-500 mt-0.5">Google DeepMind AI 냉각 실증. PUE 15% 개선</div><span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 mt-1">PUE 15%↓</span></div></div>
+          <div class="flex gap-3 items-start"><div class="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0"><i class="fa-solid fa-coins"></i></div><div><div class="font-bold text-sm text-slate-800">인건비 40~60% 절감</div><div class="text-xs text-slate-500 mt-0.5">L3시 NOC 최적화. 절감 인력→혁신/아키텍처 재배치</div><span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 mt-1">1,500h/년 절약</span></div></div>
+        </div>
+      </div>
+      <div class="impact-card neg">
+        <h3 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-red-500"></i> 위험 요소</h3>
+        <div class="space-y-4">
+          <div class="flex gap-3 items-start pb-4 border-b border-slate-100"><div class="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-red-600 shrink-0"><i class="fa-solid fa-explosion"></i></div><div><div class="font-bold text-sm text-slate-800">AI 버그 → 연쇄 장애</div><div class="text-xs text-slate-500 mt-0.5">잘못된 자동행동이 서비스·존·리전 단위로 증폭. SPOF 위험</div><span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-red-50 text-red-700 mt-1">Critical</span></div></div>
+          <div class="flex gap-3 items-start pb-4 border-b border-slate-100"><div class="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0"><i class="fa-solid fa-arrows-spin"></i></div><div><div class="font-bold text-sm text-slate-800">자동복구 무한 루프</div><div class="text-xs text-slate-500 mt-0.5">AI 수정→새 문제→재수정 반복 — 복구 불가능 상태 진입</div><span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 mt-1">Critical</span></div></div>
+          <div class="flex gap-3 items-start pb-4 border-b border-slate-100"><div class="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-red-600 shrink-0"><i class="fa-solid fa-shield-halved"></i></div><div><div class="font-bold text-sm text-slate-800">적대적 공격 & 컴플라이언스</div><div class="text-xs text-slate-500 mt-0.5">AI에 조작 데이터 주입. 블랙박스 판단으로 감사 충족 곤란</div><span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-red-50 text-red-700 mt-1">High</span></div></div>
+          <div class="flex gap-3 items-start"><div class="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0"><i class="fa-solid fa-person-falling"></i></div><div><div class="font-bold text-sm text-slate-800">기술 역량 퇴화</div><div class="text-xs text-slate-500 mt-0.5">AI 의존→수동 능력↓. AI 장애 시 수동 복구 불가, 장기화</div><span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 mt-1">High</span></div></div>
+        </div>
+      </div>
+    </div>
+    <!-- Risk Matrix -->
+    <div class="anim anim-d2 mt-8">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 class="text-lg font-bold text-slate-900 mb-1 text-center">위험 매트릭스 (영향도 × 발생확률)</h3>
+        <p class="text-xs text-slate-400 mb-4 text-center">셀 안의 텍스트는 해당 위험이 발생할 확률과 서비스에 미치는 영향도를 교차로 배치한 것입니다.</p>
+        <div class="risk-matrix">
+          <div class="rm-h"></div>
+          <div class="rm-h"><i class="fa-solid fa-circle text-emerald-400 text-[10px] mr-1"></i>발생확률 낮음</div>
+          <div class="rm-h"><i class="fa-solid fa-circle text-amber-400 text-[10px] mr-1"></i>발생확률 보통</div>
+          <div class="rm-h"><i class="fa-solid fa-circle text-red-400 text-[10px] mr-1"></i>발생확률 높음</div>
+          <div class="rm-h">영향도<br><span class="text-red-600 font-black">치명적</span></div>
+          <div class="rm-c rm-med"><strong>AI 연쇄장애</strong><br><span class="text-[11px]">자동실행이 전체 시스템으로 전파</span></div>
+          <div class="rm-c rm-high"><strong>복구 무한루프</strong><br><span class="text-[11px]">AI끼리 수정→재오류 반복</span></div>
+          <div class="rm-c rm-high" style="opacity:0.4;">—</div>
+          <div class="rm-h">영향도<br><span class="text-amber-600 font-black">심각</span></div>
+          <div class="rm-c rm-low"><strong>적대적 공격</strong><br><span class="text-[11px]">AI에 조작 데이터 주입</span></div>
+          <div class="rm-c rm-med"><strong>모델 드리프트</strong><br><span class="text-[11px]">시간 경과로 예측력 하락</span></div>
+          <div class="rm-c rm-high"><strong>기술역량 퇴화</strong><br><span class="text-[11px]">사람이 수동복구 불가</span></div>
+          <div class="rm-h">영향도<br><span class="text-slate-500 font-black">보통</span></div>
+          <div class="rm-c rm-low"><strong>벤더 종속</strong><br><span class="text-[11px]">특정 AI에 의존도 상승</span></div>
+          <div class="rm-c rm-med"><strong>컴플라이언스</strong><br><span class="text-[11px]">블랙박스로 감사 통과 곤란</span></div>
+          <div class="rm-c rm-med"><strong>조직 저항</strong><br><span class="text-[11px]">현장 인력의 변화 거부</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 5: ROADMAP -->
+<div class="slide" data-id="roadmap">
+  <div class="slide-inner" style="display:flex;flex-direction:column;justify-content:center;min-height:100%;">
+    <div class="text-center mb-10 anim">
+      <h2 class="text-3xl font-bold text-slate-900 mb-3">실행 로드맵</h2>
+      <p class="text-slate-500">5개년 단계별 전환 계획</p>
+    </div>
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 anim anim-d1">
+      <div class="road-timeline">
+        <a href="SCP_prediction_final.html" class="road-phase" style="text-decoration:none;color:inherit;cursor:pointer;" title="SINDy HDD 예측 모델 상세 보기"><div class="road-dot current"></div><div class="text-xs font-bold text-emerald-600 mb-1">2026 H1 ← NOW</div><h4 class="text-sm font-bold text-slate-800 mb-1">L0→L1 기반 구축 <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-blue-500"></i></h4><p class="text-xs text-slate-500">통합 모니터링, AI 이상탐지, SINDy HDD 예측 모델</p></a>
+        <div class="road-phase"><div class="road-dot"></div><div class="text-xs font-bold text-blue-600 mb-1">2026 H2~2027</div><h4 class="text-sm font-bold text-slate-800 mb-1">L1→L2 부분 자동화</h4><p class="text-xs text-slate-500">Auto-remediation, AI 냉각, PagerDuty AIOps</p></div>
+        <div class="road-phase"><div class="road-dot"></div><div class="text-xs font-bold text-blue-600 mb-1">2027~2028</div><h4 class="text-sm font-bold text-slate-800 mb-1">L2→L3 조건부 자율</h4><p class="text-xs text-slate-500">OpenCLAW/NemoCLAW, AI RCA, Kill Switch 완비</p></div>
+        <div class="road-phase"><div class="road-dot"></div><div class="text-xs font-bold text-blue-600 mb-1">2028~2030</div><h4 class="text-sm font-bold text-slate-800 mb-1">L3→L4 고도 자율</h4><p class="text-xs text-slate-500">멀티에이전트, Digital Twin, Human-on-the-Loop</p></div>
+        <div class="road-phase"><div class="road-dot"></div><div class="text-xs font-bold text-blue-600 mb-1">2030+</div><h4 class="text-sm font-bold text-slate-800 mb-1">L5 완전 자율</h4><p class="text-xs text-slate-500">Self-Healing, 로봇 통합, formal verification</p></div>
+      </div>
+    </div>
+    <!-- Footer inside last slide -->
+    <div class="text-center mt-12 pt-8 border-t border-slate-200">
+      <p class="text-sm font-bold text-slate-700">AI 자율운영 데이터센터</p>
+      <p class="text-xs text-slate-400 mt-1">OpenCLAW · NemoCLAW · SINDy · AIOps |
+        <a href="https://deepmind.google" target="_blank" class="text-blue-500 hover:underline">Google DeepMind</a> ·
+        <a href="https://nvidia.com" target="_blank" class="text-blue-500 hover:underline">NVIDIA</a> ·
+        <a href="https://sre.google/sre-book/managing-incidents/" target="_blank" class="text-blue-500 hover:underline">Google SRE Book</a> ·
+        <a href="https://aws.amazon.com/builders-library/" target="_blank" class="text-blue-500 hover:underline">AWS Builders' Library</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+</div><!-- /slide-container -->
+
+<!-- Slide Navigation Arrows -->
+<button id="arrow-prev" class="slide-arrow disabled" onclick="goSlide(current-1)"><i class="fa-solid fa-chevron-left"></i></button>
+<button id="arrow-next" class="slide-arrow" onclick="goSlide(current+1)"><i class="fa-solid fa-chevron-right"></i></button>
+
+<!-- Page Indicator Dots -->
+<div id="page-dots"></div>
+
+<!-- Keyboard Hint -->
+<div id="key-hint"><kbd>←</kbd> <kbd>→</kbd> 또는 스크롤로 이동 · <span id="slide-counter">1 / 6</span></div>
+
+<script>
+// ===== Slide Engine =====
+var slides = document.querySelectorAll('.slide');
+var container = document.getElementById('slide-container');
+var totalSlides = slides.length;
+var current = 0;
+var isAnimating = false;
+var animDuration = 700;
+
+// Build page dots
+var dotsEl = document.getElementById('page-dots');
+var dotLabels = ['개요','글로벌 사례','6단계','기회vs위험','로드맵'];
+for (var i = 0; i < totalSlides; i++) {
+  var dot = document.createElement('div');
+  dot.className = 'page-dot' + (i === 0 ? ' active' : '');
+  dot.setAttribute('data-idx', i);
+  dot.setAttribute('title', dotLabels[i]);
+  dot.onclick = (function(idx) { return function() { goSlide(idx); }; })(i);
+  dotsEl.appendChild(dot);
+}
+
+function goSlide(idx) {
+  if (isAnimating || idx < 0 || idx >= totalSlides || idx === current) return;
+  isAnimating = true;
+
+  // Remove active from old slide
+  slides[current].classList.remove('active');
+  // Scroll old slide back to top
+  slides[current].scrollTop = 0;
+
+  current = idx;
+  container.style.transform = 'translateX(-' + (current * 100) + 'vw)';
+
+  // Update UI
+  updateUI();
+
+  setTimeout(function() {
+    slides[current].classList.add('active');
+    isAnimating = false;
+  }, 100);
+}
+
+function updateUI() {
+  // Dots
+  document.querySelectorAll('.page-dot').forEach(function(d, i) {
+    d.classList.toggle('active', i === current);
+  });
+  // Nav links
+  document.querySelectorAll('nav [data-slide]').forEach(function(a) {
+    var idx = parseInt(a.getAttribute('data-slide'));
+    if (a.classList.contains('nav-pill')) {
+      a.classList.toggle('active', idx === current);
+    } else {
+      a.classList.toggle('active', idx === current);
+    }
+  });
+  // Arrows
+  document.getElementById('arrow-prev').classList.toggle('disabled', current === 0);
+  document.getElementById('arrow-next').classList.toggle('disabled', current === totalSlides - 1);
+  // Counter
+  document.getElementById('slide-counter').textContent = (current + 1) + ' / ' + totalSlides;
+}
+
+// Init first slide
+slides[0].classList.add('active');
+updateUI();
+
+// ===== Nav Click =====
+document.querySelectorAll('nav [data-slide]').forEach(function(a) {
+  a.addEventListener('click', function(e) {
+    e.preventDefault();
+    goSlide(parseInt(this.getAttribute('data-slide')));
+  });
+});
+
+// ===== Mouse Wheel =====
+var wheelTimeout = null;
+document.addEventListener('wheel', function(e) {
+  // Allow internal scrolling if slide has scrollable content
+  var slide = slides[current];
+  var atTop = slide.scrollTop <= 5;
+  var atBottom = slide.scrollTop + slide.clientHeight >= slide.scrollHeight - 5;
+
+  // Only change slides if at scroll boundary
+  if (e.deltaY > 0 && !atBottom) return;
+  if (e.deltaY < 0 && !atTop) return;
+
+  // Debounce
+  if (wheelTimeout) return;
+  wheelTimeout = setTimeout(function() { wheelTimeout = null; }, 800);
+
+  if (e.deltaY > 15) goSlide(current + 1);
+  else if (e.deltaY < -15) goSlide(current - 1);
+}, { passive: true });
+
+// ===== Keyboard =====
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); goSlide(current + 1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); goSlide(current - 1); }
+  else if (e.key === 'Home') { e.preventDefault(); goSlide(0); }
+  else if (e.key === 'End') { e.preventDefault(); goSlide(totalSlides - 1); }
+});
+
+// ===== Touch Swipe =====
+var touchStartX = 0;
+document.addEventListener('touchstart', function(e) { touchStartX = e.touches[0].clientX; }, { passive: true });
+document.addEventListener('touchend', function(e) {
+  var dx = e.changedTouches[0].clientX - touchStartX;
+  if (Math.abs(dx) > 60) {
+    if (dx < 0) goSlide(current + 1);
+    else goSlide(current - 1);
+  }
+}, { passive: true });
+
+// ===== Reference Modal (KPI) =====
+var refData = {
+  cooling: {
+    title: '냉각 에너지 절감 40% — 참고 자료',
+    items: [
+      { title:'Google DeepMind — AI for Data Centre Cooling', url:'https://deepmind.google/discover/blog/safety-first-ai-for-autonomous-data-centre-cooling-and-industrial-control/', desc:'DeepMind이 Google DC에 적용한 AI 냉각 시스템으로 에너지 사용량 40% 절감 달성.' },
+      { title:'Google Environmental Report', url:'https://sustainability.google/reports/', desc:'Google의 연간 환경 보고서. 데이터센터 에너지 효율화 성과 및 목표.' },
+      { title:'Nokia — DC AIOps & Automation', url:'https://www.nokia.com/blog/automate-everything-how-data-centers-are-embracing-aiops-and-automation/', desc:'AI 기반 냉각 최적화가 데이터센터 자동화의 핵심 사례로 소개됨.' }
+    ]
+  },
+  mttr: {
+    title: 'MTTR 50% 단축 — 참고 자료',
+    items: [
+      { title:'AIOps MTTR 40% 단축 사례 (HCL Technologies)', url:'https://medium.com/@alexendrascott01/case-study-how-enterprises-use-aiops-to-cut-mttr-by-40-576600a4215a', desc:'HCL이 Moogsoft AIOps를 도입하여 MTTR 33% 단축, 이벤트 85% 통합 달성.' },
+      { title:'Azure SRE Agent GA 발표 (Microsoft)', url:'https://techcommunity.microsoft.com/blog/appsonazureblog/announcing-general-availability-for-the-azure-sre-agent/4500682', desc:'2026.03 Azure SRE Agent GA. AI가 장애 조사·요약·runbook 추천 수행.' },
+      { title:'Rootly — AI in Incident Response', url:'https://rootly.com/blog/ai-in-incident-response-how-automation-improves-mttr', desc:'AI 기반 인시던트 대응 자동화로 MTTR 50% 이상 단축 가능성 분석.' },
+      { title:'LogicMonitor — Reduce MTTR', url:'https://www.logicmonitor.com/solutions/reduce-mttr', desc:'AIOps와 관측성을 결합하여 MTTR을 50% 줄이고 가용성 15% 향상.' }
+    ]
+  },
+  humanerror: {
+    title: '장애의 70% = 휴먼에러 — 참고 자료',
+    items: [
+      { title:'Gartner — Human Error in IT Outages', url:'https://www.gartner.com/en/documents/3986808', desc:'Gartner에 따르면 데이터센터 장애의 약 70%가 인적 오류에 기인함.' },
+      { title:'Uptime Institute Annual Outage Analysis', url:'https://uptimeinstitute.com/resources/research-and-reports/annual-outage-analysis', desc:'연간 데이터센터 장애 분석. 인적 오류가 지속적으로 주요 원인으로 지목됨.' },
+      { title:'Google SRE Book — Managing Incidents', url:'https://sre.google/sre-book/managing-incidents/', desc:'Google SRE 장애 대응 체계. Incident Commander 중심 지휘 구조.' },
+      { title:'Azure Front Door 장애 교훈', url:'https://techcommunity.microsoft.com/blog/azurenetworkingblog/azure-front-door-implementing-lessons-learned-following-october-outages/4479416', desc:'Microsoft의 실제 장애 후 교훈. blast radius 축소와 격리 강화.' }
+    ]
+  },
+  automation: {
+    title: '반복 업무 자동화 60% — 참고 자료',
+    items: [
+      { title:'AWS Builders Library — Safe Hands-off Deployments', url:'https://aws.amazon.com/builders-library/automating-safe-hands-off-deployments/', desc:'AWS의 one-box → rolling → auto-rollback 배포 자동화 패턴.' },
+      { title:'IBM — Five Benefits of AIOps', url:'https://www.ibm.com/think/insights/the-five-key-benefits-of-aiops-and-automation', desc:'AIOps와 자동화의 5가지 핵심 이점. 반복 업무 자동화와 운영 효율화.' },
+      { title:'Google SRE — Being On-Call', url:'https://sre.google/sre-book/being-on-call/', desc:'On-call 프로세스 자동화 현황. incident tool이 역할 handoff 자동화.' },
+      { title:'Palo Alto Networks — AIOps Use Cases', url:'https://www.paloaltonetworks.com/cyberpedia/aiops-use-cases', desc:'AIOps 도입 기업의 주요 유스케이스와 자동화 성과.' }
+    ]
+  }
+};
+
+function openRef(key) {
+  var data = refData[key];
+  var modal = document.getElementById('refModal');
+  var content = document.getElementById('refContent');
+  var html = '<button onclick="closeRef()" style="float:right;width:32px;height:32px;border-radius:50%;background:#f1f5f9;border:1px solid #e2e8f0;color:#334155;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>';
+  html += '<h3>' + data.title + '</h3>';
+  data.items.forEach(function(item) {
+    html += '<div class="ref-item"><a href="' + item.url + '" target="_blank" rel="noreferrer">' + item.title + ' ↗</a><p>' + item.desc + '</p></div>';
+  });
+  content.innerHTML = html;
+  modal.classList.add('show');
+}
+function closeRef() { document.getElementById('refModal').classList.remove('show'); }
+document.getElementById('refModal').addEventListener('click', function(e) { if (e.target === this) closeRef(); });
+</script>
+</body>
+</html>
